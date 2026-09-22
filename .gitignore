@@ -1,0 +1,21 @@
+# Dados brutos do Inep — grandes demais e públicos, não versionar
+data/raw/*
+!data/raw/README.md
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Ambiente Node (para a etapa 3/4, app D3 + DuckDB-Wasm)
+node_modules/
+dist/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
