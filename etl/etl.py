@@ -29,9 +29,9 @@ from pathlib import Path
 # ----------------------------------------------------------------------
 # Configuração de pastas
 # ----------------------------------------------------------------------
-RAW_DIR = Path("dados_brutos")       # onde estão os CSVs e as pastas extraídas dos .zip do Ideb
-OUT_DIR = Path("dados_tratados")
-OUT_DIR.mkdir(exist_ok=True)
+RAW_DIR = Path("data/raw")       # onde estão os CSVs e as pastas extraídas dos .zip do Ideb
+OUT_DIR = Path("data/processed")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 IDEB_FILES = {
     "anos_iniciais": RAW_DIR / "divulgacao_anos_iniciais_escolas_2025" / "divulgacao_anos_iniciais_escolas_2025.xlsx",
