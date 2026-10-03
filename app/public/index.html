@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visualização Interativa de Dados Educacionais</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="../src/styles.css">
+</head>
+<body>
+
+<div id="app-init-overlay" class="app-init-overlay">
+  <div>Carregando o motor de consultas e a base de dados…</div>
+  <div style="font-size:11px;color:var(--ink-faint)">DuckDB-Wasm · 78.776 escolas públicas · Censo Escolar 2025 · Ideb 2025 · INSE 2023</div>
+</div>
+
+<div class="app-shell" id="app-shell" style="visibility:hidden">
+
+  <header class="app-header">
+    <div class="app-header-main">
+      <div class="app-logo"><i class="ti ti-school" aria-hidden="true"></i></div>
+      <div>
+        <h1>Infraestrutura escolar e desempenho no Ideb</h1>
+        <p class="subtitle">Exploração visual e observacional das escolas públicas brasileiras — sem inferência de causalidade.</p>
+      </div>
+    </div>
+    <div class="app-header-badges">
+      <span class="info-pill" tabindex="0" title="O INSE é utilizado como dimensão de contexto socioeconômico. Sua edição mais recente disponível é 2023, enquanto o Ideb e o Censo Escolar utilizados nesta análise são de 2025 — as três bases não compartilham o mesmo ano de referência.">
+        <i class="ti ti-database" aria-hidden="true"></i> Dados: Censo Escolar 2025 · Ideb 2025 · INSE 2023
+        <i class="ti ti-info-circle info-pill-icon" aria-hidden="true"></i>
+      </span>
+      <span class="info-pill" tabindex="0" title="Análise transversal (2025), exploratória e observacional. As perguntas-guia: onde está o Ideb mais alto/baixo, como ele se relaciona com infraestrutura, em qual contexto socioeconômico, e quais escolas se destacam da tendência.">
+        <i class="ti ti-info-circle" aria-hidden="true"></i> Sobre os dados
+      </span>
+    </div>
+  </header>
+
+  <nav class="filter-bar" id="filter-bar" aria-label="Filtros globais">
+    <!-- populated by filters.js -->
+  </nav>
+
+  <main class="main-grid">
+
+    <section class="panel" id="map-panel" aria-labelledby="map-title">
+      <div class="panel-header">
+        <div class="panel-icon panel-icon-map"><i class="ti ti-map-2" aria-hidden="true"></i></div>
+        <div>
+          <h2 id="map-title">1. Onde?</h2>
+          <span class="panel-hint">Distribuição espacial do Ideb médio por UF · clique para filtrar</span>
+        </div>
+      </div>
+      <div style="position:relative;flex:1">
+        <svg id="map-svg" viewBox="0 0 480 480" role="img" aria-label="Mapa coroplético do Brasil por Ideb médio"></svg>
+        <div class="loading-overlay" id="map-loading" hidden>Atualizando…</div>
+        <div class="empty-state" id="map-empty" hidden></div>
+      </div>
+      <div class="map-legend" id="map-legend"></div>
+    </section>
+
+    <section class="panel" id="scatter-panel" aria-labelledby="scatter-title">
+      <div class="panel-header">
+        <div class="panel-icon panel-icon-scatter"><i class="ti ti-chart-dots-3" aria-hidden="true"></i></div>
+        <div>
+          <h2 id="scatter-title">2. Como se relaciona?</h2>
+          <span class="panel-hint" id="scatter-subtitle">Cada ponto representa uma escola pública no contexto filtrado.</span>
+        </div>
+      </div>
+      <div class="level2-controls-row">
+        <div class="control-field">
+          <label for="analysis-variable-select"><i class="ti ti-variable" aria-hidden="true"></i> Variável de análise</label>
+          <select id="analysis-variable-select" aria-label="Variável de análise"></select>
+        </div>
+        <div class="control-field">
+          <label for="segment-select"><i class="ti ti-users-group" aria-hidden="true"></i> Segmentar por</label>
+          <select id="segment-select" aria-label="Segmentar por"></select>
+        </div>
+        <div class="control-field" id="scatter-mode-field">
+          <label><i class="ti ti-eye" aria-hidden="true"></i> Modo de visualização</label>
+          <div class="mode-toggle" id="scatter-mode-toggle" role="group" aria-label="Modo de exibição">
+            <button data-mode="pontos" class="active"><i class="ti ti-point" aria-hidden="true"></i> Pontos individuais</button>
+            <button data-mode="densidade"><i class="ti ti-grid-dots" aria-hidden="true"></i> Densidade</button>
+            <button data-mode="tendencia"><i class="ti ti-trending-up" aria-hidden="true"></i> Ideb médio por faixa</button>
+          </div>
+        </div>
+      </div>
+      <div class="scatter-legend" id="scatter-legend"></div>
+      <button class="overplot-hint" id="overplot-hint" type="button" hidden>
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <span id="overplot-hint-text"></span>
+        <span class="overplot-hint-action">Usar modo Densidade <i class="ti ti-arrow-right" aria-hidden="true"></i></span>
+      </button>
+      <p class="brush-hint" id="brush-hint"><i class="ti ti-drag-drop" aria-hidden="true"></i> Arraste no gráfico para selecionar escolas.</p>
+      <div class="scatter-wrap" id="scatter-wrap">
+        <canvas id="scatter-canvas"></canvas>
+        <svg id="scatter-overlay" class="overlay"></svg>
+        <div class="loading-overlay" id="scatter-loading" hidden>Atualizando…</div>
+        <div class="empty-state" id="scatter-empty" hidden></div>
+      </div>
+      <div class="scatter-footnotes">
+        <span class="selection-counter" id="selection-counter"></span>
+        <span class="footnote-pill"><i class="ti ti-circle-dot" aria-hidden="true"></i> Cada ponto = 1 escola</span>
+      </div>
+      <div class="segment-summary-wrap" id="segment-summary-wrap" hidden>
+        <h3 id="segment-summary-title">Ideb médio por segmentação</h3>
+        <p class="panel-subtitle">Posição = média; linha = intervalo entre o 1º e o 3º quartil. Nunca uma caixa — a comparação usa só posição.</p>
+        <div id="segment-summary"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <section class="level3-panel" aria-labelledby="level3-title">
+    <div class="panel-header">
+      <div class="panel-icon panel-icon-award"><i class="ti ti-award" aria-hidden="true"></i></div>
+      <div>
+        <h2 id="level3-title">3. Quais se destacam?</h2>
+        <span class="panel-hint">Compare escolas selecionadas e identifique aquelas que se afastam da tendência observada.</span>
+      </div>
+      <div class="mode-toggle" id="level3-mode-toggle" role="group" aria-label="Modo do painel de comparação">
+        <button data-mode="selecionadas" class="active">Selecionadas <span class="badge" id="badge-selecionadas">0</span></button>
+        <button data-mode="outliers">Destaques em relação à tendência <span class="badge" id="badge-destaques">0</span></button>
+      </div>
+    </div>
+    <div id="level3-content"></div>
+  </section>
+
+</div>
+
+<div id="tooltip" class="viz-tooltip" role="tooltip"></div>
+
+<script type="module" src="../src/main.js"></script>
+</body>
+</html>
