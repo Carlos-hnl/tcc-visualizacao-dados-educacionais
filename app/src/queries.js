@@ -139,11 +139,14 @@ function binExpr(xVar, minX, maxX, nBins = N_BINS) {
 // domínio P1/P99 (não o intervalo completo) — valores fora desse intervalo
 // ainda participam do cálculo, só caem na faixa de borda (LEAST/GREATEST em
 // binExpr já faz isso), em vez de esticar todos os bins até o outlier.
-export function trendQuery(state, xVar, minX, maxX) {
+// nBins é ajustável pelo usuário (controle "Nº de faixas") — o tamanho do
+// bin muda o que fica visível (um bin grosseiro esconde padrões finos, um
+// fino demais vira ruído), então deixamos o próprio usuário comparar.
+export function trendQuery(state, xVar, minX, maxX, nBins = N_BINS) {
   const where = buildWhere(state);
   return `
     SELECT
-      ${binExpr(xVar, minX, maxX)} AS faixa,
+      ${binExpr(xVar, minX, maxX, nBins)} AS faixa,
       AVG(${xVar}) AS x_medio,
       AVG(ideb) AS ideb_medio,
       COUNT(DISTINCT co_entidade) AS n
@@ -216,12 +219,14 @@ export function categorySummaryQuery(state, catVar, isNumeric) {
 // densityGridQuery (ver computeAxisDomain em main.js), não o intervalo
 // completo — senão a faixa de cada escola é quase sempre a mesma (dominada
 // pelo outlier), e a "distância" vira só o desvio em relação à média global.
-// Não é regressão nem previsão — ver DISTANCIA_NOTE.
-export function outliersQuery(state, xVar, minX, maxX, limit = 10) {
+// Não é regressão nem previsão — ver DISTANCIA_NOTE. Usa o mesmo nBins do
+// gráfico de tendência, para a distância continuar coerente com a faixa que
+// o usuário está vendo (não duas granularidades diferentes ao mesmo tempo).
+export function outliersQuery(state, xVar, minX, maxX, limit = 10, nBins = N_BINS) {
   const where = buildWhere(state);
   return `
     WITH base AS (
-      SELECT *, ${binExpr(xVar, minX, maxX)} AS faixa
+      SELECT *, ${binExpr(xVar, minX, maxX, nBins)} AS faixa
       FROM escolas_v
       WHERE ${where} AND ${xVar} IS NOT NULL
     ),
