@@ -29,7 +29,10 @@ const MARGIN = { top: 10, right: 16, bottom: 40, left: 48 };
 
 let canvas, ctx, svg, wrap;
 let width = 0, height = 0;
-let xScale, yScale;
+let xScale, yScale; // escala ATUAL (já com zoom aplicado, quando houver)
+let baseXScale, baseYScale; // escala original (domínio dos dados), nunca muda com zoom
+let zoomTransform = d3.zoomIdentity;
+let zoomBehavior = null;
 let quadtree = null;
 let currentPoints = [];
 let selectedIds = new Set();
@@ -74,12 +77,17 @@ function innerH() { return height - MARGIN.top - MARGIN.bottom; }
 function clearAll() {
   ctx.clearRect(0, 0, width, height);
   svg.selectAll('*').remove();
+  // d3.zoom() anexa seus listeners (wheel/mousedown/etc.) direto no <svg>
+  // raiz, não nos filhos — selectAll('*').remove() não os limpa sozinho.
+  // Sem isso, trocar de modo (ex.: Pontos -> Densidade) deixaria o zoom da
+  // visualização anterior ainda ativo por cima da nova.
+  svg.on('.zoom', null);
 }
 
 function drawAxes(xLabel, yLabel, xIsBand) {
   const g = svg.append('g');
-  const gx = g.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top + innerH()})`);
-  const gy = g.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
+  const gx = g.append('g').attr('class', 'axis-x').attr('transform', `translate(${MARGIN.left},${MARGIN.top + innerH()})`);
+  const gy = g.append('g').attr('class', 'axis-y').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
 
   if (xIsBand) gx.call(d3.axisBottom(xScale));
   else gx.call(d3.axisBottom(xScale).ticks(6));
@@ -181,16 +189,15 @@ export function renderContinuousPoints(points, xLabel, domain, segmentBy) {
   currentSegmentBy = segmentBy;
   selectedIds = new Set();
   hoveredId = null;
+  zoomTransform = d3.zoomIdentity; // trocar variável/filtro reseta o zoom
   updateSelectionCounter();
 
-  xScale = d3.scaleLinear().domain(domain).range([0, innerW()]).nice().clamp(true);
-  yScale = d3.scaleLinear().domain([0, 10]).range([innerH(), 0]);
+  baseXScale = d3.scaleLinear().domain(domain).range([0, innerW()]).nice().clamp(true);
+  baseYScale = d3.scaleLinear().domain([0, 10]).range([innerH(), 0]);
+  xScale = baseXScale;
+  yScale = baseYScale;
 
-  const renderedDomain = xScale.domain(); // após .nice() — é o domínio que o clamp() realmente usa
-  quadtree = d3.quadtree()
-    .x((d) => xScale(d.x) + clampJitter(d, renderedDomain))
-    .y((d) => yScale(d.ideb))
-    .addAll(points);
+  rebuildQuadtreeForZoom();
 
   lastRender = () => paintPoints();
   clearAll();
@@ -198,6 +205,57 @@ export function renderContinuousPoints(points, xLabel, domain, segmentBy) {
   paintPoints();
   attachBrush();
   attachHover();
+  attachZoom();
+}
+
+// ---------------------------------------------------------------------
+// Zoom e pan — só no modo "Pontos individuais" (contínuo). Navegação
+// restrita (aula 11/livro cap. 11): escala limitada e panorâmica presa aos
+// limites do próprio gráfico, para não deixar o usuário "se perder" fora
+// dos dados. Zoom só por roda do mouse (scroll) — o arraste continua
+// reservado exclusivamente para o brush de seleção, sem conflito entre os
+// dois gestos.
+function attachZoom() {
+  zoomBehavior = d3.zoom()
+    .scaleExtent([1, 30])
+    .translateExtent([[0, 0], [innerW(), innerH()]])
+    .filter((event) => event.type === 'wheel')
+    .on('zoom', (event) => {
+      zoomTransform = event.transform;
+      xScale = zoomTransform.rescaleX(baseXScale);
+      yScale = zoomTransform.rescaleY(baseYScale);
+      updateAxesForZoom();
+      rebuildQuadtreeForZoom();
+      paintPoints();
+      toggleZoomResetButton();
+    });
+  svg.call(zoomBehavior);
+}
+
+function updateAxesForZoom() {
+  svg.select('.axis-x').call(d3.axisBottom(xScale).ticks(6));
+  svg.select('.axis-y').call(d3.axisLeft(yScale).ticks(6));
+  svg.selectAll('.axis-x .domain, .axis-x .tick line, .axis-y .domain, .axis-y .tick line').attr('stroke', '#b9bab2');
+  svg.selectAll('.axis-x text, .axis-y text').attr('fill', '#4d514e').style('font-size', '11px').style('font-family', 'IBM Plex Sans');
+}
+
+function rebuildQuadtreeForZoom() {
+  const domain = xScale.domain();
+  quadtree = d3.quadtree()
+    .x((d) => xScale(d.x) + clampJitter(d, domain))
+    .y((d) => yScale(d.ideb))
+    .addAll(currentPoints);
+}
+
+function toggleZoomResetButton() {
+  const btn = document.getElementById('zoom-reset');
+  if (btn) btn.hidden = zoomTransform.k === 1 && zoomTransform.x === 0 && zoomTransform.y === 0;
+}
+
+// Botão "Resetar zoom" (index.html) chama esta função.
+export function resetZoom() {
+  if (!zoomBehavior || !svg) return;
+  svg.transition().duration(250).call(zoomBehavior.transform, d3.zoomIdentity);
 }
 
 // ---------------------------------------------------------------------

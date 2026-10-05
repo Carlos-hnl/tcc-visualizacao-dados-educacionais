@@ -338,10 +338,21 @@ button, select, input { font-family: inherit; font-size: inherit; }
 
 .main-grid {
   display: grid;
-  grid-template-columns: 40% 60%;
+  /* Mapa compacto (funciona como filtro/índice espacial), mas não minúsculo
+     — o scatter continua dominante, só não precisa "sobrar" tanto espaço. */
+  grid-template-columns: 380px 1fr;
   gap: 16px;
   flex: 1;
 }
+
+#map-panel .map-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+#map-panel #map-svg { max-width: 340px; }
 
 .panel {
   background: var(--panel);
@@ -523,6 +534,14 @@ button, select, input { font-family: inherit; font-size: inherit; }
   border-radius: 999px;
   padding: 4px 10px;
 }
+.footnote-pill-btn {
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+.footnote-pill-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.footnote-pill-btn[hidden] { display: none; }
 
 .mode-toggle {
   display: flex;
@@ -616,8 +635,9 @@ button, select, input { font-family: inherit; font-size: inherit; }
 
 .map-legend {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   font-size: 11px;
   color: var(--ink-soft);
   margin-top: 10px;
