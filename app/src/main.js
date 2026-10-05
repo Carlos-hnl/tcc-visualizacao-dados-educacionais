@@ -11,7 +11,7 @@ import * as Q from './queries.js';
 import { initMap, updateMap, setColorDomain, flashUf } from './map.js';
 import {
   initScatter, renderContinuousPoints, renderDensity, renderTrend, renderStripPlot, renderSmallMultiples,
-  renderCategoryDotPlot, getLegendItems, getScatterLegendItems, setHighlighted, clearSelection,
+  renderCategoryDotPlot, getLegendItems, getScatterLegendItems, setHighlighted, clearSelection, resetZoom,
 } from './scatter.js';
 import { initComparison, renderSelecionadas, renderOutliers, highlightRow } from './comparison.js';
 import { debounce, setLoading, setEmptyState, EMPTY_MESSAGES } from './ui.js';
@@ -21,6 +21,7 @@ const ui = {
   segmentBy: 'nenhuma',
   scatterMode: 'pontos', // 'pontos' | 'densidade' | 'tendencia' (só p/ contínuas)
   level3Mode: 'selecionadas', // 'selecionadas' | 'outliers'
+  nBins: 16, // nº de faixas do modo "Ideb médio por faixa" — ajustável pelo usuário
 };
 let lastSelectedRows = [];
 let lastEtapaForColorDomain = null;
@@ -151,8 +152,16 @@ function wireLevel2Controls() {
     if (!btn) return;
     ui.scatterMode = btn.dataset.mode;
     [...e.currentTarget.children].forEach((b) => b.classList.toggle('active', b === btn));
+    updateModeDependentControls();
     refreshScatterAndLevel3();
   });
+
+  document.getElementById('nbins-select').addEventListener('change', (e) => {
+    ui.nBins = parseInt(e.target.value, 10);
+    refreshScatterAndLevel3();
+  });
+
+  document.getElementById('zoom-reset').addEventListener('click', () => resetZoom());
 
   document.getElementById('overplot-hint').addEventListener('click', () => {
     ui.scatterMode = 'densidade';
@@ -175,6 +184,18 @@ function wireLevel2Controls() {
 function updateScatterModeVisibility() {
   const isContinua = currentXMeta()?.type === 'continua';
   document.getElementById('scatter-mode-toggle').style.display = isContinua ? '' : 'none';
+  updateModeDependentControls();
+}
+
+// Controles específicos de cada modo do Nível 2: nº de faixas (só
+// "Ideb médio por faixa"); dica/botão de zoom (só "Pontos individuais",
+// onde o zoom está realmente ativo — ver attachZoom em scatter.js).
+function updateModeDependentControls() {
+  const isContinua = currentXMeta()?.type === 'continua';
+  document.getElementById('nbins-field').hidden = !(isContinua && ui.scatterMode === 'tendencia');
+  const isPontos = isContinua && ui.scatterMode === 'pontos';
+  document.getElementById('zoom-hint').hidden = !isPontos;
+  if (!isPontos) document.getElementById('zoom-reset').hidden = true; // reaparece sozinho se o usuário der zoom de novo
 }
 
 function syncLevel3Toggle() {
@@ -325,13 +346,13 @@ async function refreshScatterAndLevel3() {
           extremeNote = 'Valores extremos são agregados nas faixas de borda (percentis 1–99) para preservar a legibilidade da tendência e da densidade; os cálculos usam todos os dados.';
         }
 
-        // Bins usam o MESMO domínio do eixo (axisLo/axisHi) — usados também
-        // para anotar a distância à tendência de cada ponto no modo "Pontos".
-        const bins = await query(Q.trendQuery(state, meta.id, axisLo, axisHi));
+        // Bins usam o MESMO domínio do eixo (axisLo/axisHi) e o MESMO nBins
+        // escolhido pelo usuário — usados também para anotar a distância à
+        // tendência de cada ponto no modo "Pontos".
+        const bins = await query(Q.trendQuery(state, meta.id, axisLo, axisHi, ui.nBins));
         const binMean = new Map(bins.map((b) => [b.faixa, b.ideb_medio]));
         const span = axisHi > axisLo ? axisHi - axisLo : 1;
-        const N_BINS = 16;
-        const binOf = (x) => Math.min(N_BINS - 1, Math.max(0, Math.floor((x - axisLo) / span * N_BINS)));
+        const binOf = (x) => Math.min(ui.nBins - 1, Math.max(0, Math.floor((x - axisLo) / span * ui.nBins)));
 
         if (ui.scatterMode === 'pontos') {
           const rows = await query(Q.scatterPointsQuery(state, meta.id, ui.segmentBy));
@@ -496,7 +517,7 @@ async function refreshLevel3Only() {
     // comparava cada escola a uma média de faixa calculada em min–max (quase
     // toda faixa 0, por causa do outlier de ~11.111), não P1–P99.
     const [outLo, outHi] = computeAxisDomain(domRow);
-    const rows = await query(Q.outliersQuery(state, meta.id, outLo, outHi));
+    const rows = await query(Q.outliersQuery(state, meta.id, outLo, outHi, 10, ui.nBins));
     renderOutliers(rows, currentXLabel());
     updateLevel3Badges(null, rows.length);
   } catch (err) {

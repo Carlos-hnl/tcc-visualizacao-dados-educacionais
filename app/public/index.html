@@ -49,8 +49,8 @@
           <span class="panel-hint">Distribuição espacial do Ideb médio por UF · clique para filtrar</span>
         </div>
       </div>
-      <div style="position:relative;flex:1">
-        <svg id="map-svg" viewBox="0 0 480 480" role="img" aria-label="Mapa coroplético do Brasil por Ideb médio"></svg>
+      <div class="map-stage" style="position:relative">
+        <svg id="map-svg" viewBox="0 0 480 480" role="img" aria-label="Mapa coroplético do Brasil por Ideb médio, usado como filtro geográfico"></svg>
         <div class="loading-overlay" id="map-loading" hidden>Atualizando…</div>
         <div class="empty-state" id="map-empty" hidden></div>
       </div>
@@ -82,6 +82,16 @@
             <button data-mode="tendencia"><i class="ti ti-trending-up" aria-hidden="true"></i> Ideb médio por faixa</button>
           </div>
         </div>
+        <div class="control-field" id="nbins-field" hidden>
+          <label for="nbins-select"><i class="ti ti-chart-histogram" aria-hidden="true"></i> Nº de faixas</label>
+          <select id="nbins-select">
+            <option value="8">8 (mais grosseiro)</option>
+            <option value="12">12</option>
+            <option value="16" selected>16</option>
+            <option value="24">24</option>
+            <option value="32">32 (mais fino)</option>
+          </select>
+        </div>
       </div>
       <div class="scatter-legend" id="scatter-legend"></div>
       <button class="overplot-hint" id="overplot-hint" type="button" hidden>
@@ -98,6 +108,8 @@
       </div>
       <div class="scatter-footnotes">
         <span class="selection-counter" id="selection-counter"></span>
+        <span class="footnote-pill" id="zoom-hint"><i class="ti ti-mouse" aria-hidden="true"></i> Role o mouse para zoom</span>
+        <button class="footnote-pill footnote-pill-btn" id="zoom-reset" type="button" hidden><i class="ti ti-zoom-reset" aria-hidden="true"></i> Resetar zoom</button>
         <span class="footnote-pill"><i class="ti ti-circle-dot" aria-hidden="true"></i> Cada ponto = 1 escola</span>
       </div>
       <div class="segment-summary-wrap" id="segment-summary-wrap" hidden>
