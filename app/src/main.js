@@ -144,6 +144,7 @@ function wireLevel2Controls() {
 
   document.getElementById('segment-select').addEventListener('change', (e) => {
     ui.segmentBy = e.target.value;
+    updateModeDependentControls();
     refreshScatterAndLevel3();
   });
 
@@ -189,13 +190,23 @@ function updateScatterModeVisibility() {
 
 // Controles específicos de cada modo do Nível 2: nº de faixas (só
 // "Ideb médio por faixa"); dica/botão de zoom (só "Pontos individuais",
-// onde o zoom está realmente ativo — ver attachZoom em scatter.js).
+// onde o zoom está realmente ativo — ver attachZoom em scatter.js); nota de
+// "Segmentar por" (só quando o modo ativo não aplica a segmentação no
+// gráfico principal — Densidade e Tendência agregam tudo junto; a
+// segmentação só muda o painel de comparação abaixo).
 function updateModeDependentControls() {
   const isContinua = currentXMeta()?.type === 'continua';
   document.getElementById('nbins-field').hidden = !(isContinua && ui.scatterMode === 'tendencia');
   const isPontos = isContinua && ui.scatterMode === 'pontos';
   document.getElementById('zoom-hint').hidden = !isPontos;
   if (!isPontos) document.getElementById('zoom-reset').hidden = true; // reaparece sozinho se o usuário der zoom de novo
+
+  const segmentNote = document.getElementById('segment-mode-note');
+  if (segmentNote) {
+    const affectsMainChart = isPontos; // só em "Pontos individuais" a segmentação muda o gráfico principal
+    const segmentActive = ui.segmentBy !== 'nenhuma';
+    segmentNote.hidden = affectsMainChart || !segmentActive || !isContinua;
+  }
 }
 
 function syncLevel3Toggle() {
