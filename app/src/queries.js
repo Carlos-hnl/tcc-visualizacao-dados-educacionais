@@ -157,21 +157,18 @@ export function trendQuery(state, xVar, minX, maxX, nBins = N_BINS) {
   `;
 }
 
-// Grade de densidade 2D (aproximação de hexbin com células retangulares, por
-// simplicidade/robustez de implementação) para o modo "Densidade" do Nível 2.
-// minX/maxX devem ser o MESMO domínio (P1/P99) passado para renderDensity —
-// query e desenho precisam compartilhar o sistema de coordenadas, senão a
-// grade calculada não corresponde às posições mostradas no eixo.
-export function densityGridQuery(state, xVar, minX, maxX, cols = 28, rows = 16) {
+// Pontos brutos (x, ideb) para o modo "Densidade" do Nível 2 — o binning
+// hexagonal (d3-hexbin) é feito no cliente, em espaço de pixel, porque
+// precisa da geometria real dos hexágonos (não dá pra pré-agregar em SQL
+// como uma grade retangular). Só as duas colunas necessárias para o
+// binning — mais leve que scatterPointsQuery, que traz nome/UF/rede/etc.
+// para tooltip individual (não usados no modo agregado).
+export function densityPointsQuery(state, xVar) {
   const where = buildWhere(state);
   return `
-    SELECT
-      ${binExpr(xVar, minX, maxX, cols)} AS gx,
-      LEAST(GREATEST(CAST(FLOOR(ideb / 10.0 * ${rows}) AS INTEGER), 0), ${rows - 1}) AS gy,
-      COUNT(DISTINCT co_entidade) AS n
+    SELECT ${xVar} AS x_valor, ideb
     FROM escolas_v
-    WHERE ${where} AND ${xVar} IS NOT NULL
-    GROUP BY gx, gy;
+    WHERE ${where} AND ${xVar} IS NOT NULL;
   `;
 }
 
@@ -215,8 +212,8 @@ export function categorySummaryQuery(state, catVar, isNumeric) {
 
 // Escolas que se destacam: distância entre o Ideb observado de cada escola e
 // o Ideb médio da faixa (bin) da variável de análise ativa, dentro do
-// contexto filtrado. minX/maxX: mesmo domínio P1/P99 de trendQuery/
-// densityGridQuery (ver computeAxisDomain em main.js), não o intervalo
+// contexto filtrado. minX/maxX: mesmo domínio P1/P99 de trendQuery (ver
+// computeAxisDomain em main.js), não o intervalo
 // completo — senão a faixa de cada escola é quase sempre a mesma (dominada
 // pelo outlier), e a "distância" vira só o desvio em relação à média global.
 // Não é regressão nem previsão — ver DISTANCIA_NOTE. Usa o mesmo nBins do

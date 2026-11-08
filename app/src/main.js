@@ -280,7 +280,7 @@ function updateSubtitle(extra) {
     if (ui.scatterMode === 'pontos') {
       text = `Relação entre ${meta.label.toLowerCase()} e Ideb. Cada ponto representa uma escola pública no contexto filtrado.`;
     } else if (ui.scatterMode === 'densidade') {
-      text = `Densidade de escolas por ${meta.label.toLowerCase()} e Ideb. Cada célula agrega várias escolas; as estatísticas usam o conjunto completo filtrado, não a grade.`;
+      text = `Densidade de escolas por ${meta.label.toLowerCase()} e Ideb. Cada hexágono agrega várias escolas (cor em escala log); as estatísticas usam o conjunto completo filtrado, não a grade.`;
     } else {
       text = `Ideb médio por faixa de ${meta.label.toLowerCase()}. As faixas agrupam escolas com valores semelhantes da variável selecionada. Não sugere causalidade.`;
     }
@@ -396,11 +396,11 @@ async function refreshScatterAndLevel3() {
           }
           updateLegend(computePresentValues(points));
         } else if (ui.scatterMode === 'densidade') {
-          // Mesmo domínio (axisLo/axisHi) usado pela query E pelo render —
-          // antes a grade era calculada em min–max e desenhada em P1–P99,
-          // dois sistemas de coordenadas diferentes (bug corrigido aqui).
-          const grid = await query(Q.densityGridQuery(state, meta.id, axisLo, axisHi));
-          renderDensity(grid, meta.label, axisDomain, 28, 16);
+          // Pontos brutos (x, ideb) — o binning hexagonal (d3-hexbin) roda no
+          // cliente, em espaço de pixel, usando o MESMO domínio do eixo
+          // (axisDomain) que renderDensity usa para posicionar os pontos.
+          const densityPoints = await query(Q.densityPointsQuery(state, meta.id));
+          renderDensity(densityPoints, meta.label, axisDomain);
           updateOverplotHint(null);
           updateBrushHint(false);
           updateLegend(null);

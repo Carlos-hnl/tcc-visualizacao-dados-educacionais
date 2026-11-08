@@ -11,6 +11,7 @@
 // A forma NUNCA muda de estado para estado — ela significa só rede de ensino.
 
 import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+import { hexbin as d3Hexbin } from 'https://cdn.jsdelivr.net/npm/d3-hexbin@0.2/+esm';
 import {
   REDE_COLORS, REDE_SHAPES, REDE_ORDER, LOCALIZACAO_COLORS, LOCALIZACAO_SHAPES,
   INSE_CLASS_COLOR_SCALE, INSE_LEVELS, NEUTRAL_POINT_COLOR,
@@ -528,46 +529,112 @@ function updateSelectionCounter() {
 }
 
 // ---------------------------------------------------------------------
-// Modo "Densidade" — agregação 2D para contextos muito densos (overplotting).
-// Aproxima hexbin com uma grade retangular, por robustez de implementação;
-// é só uma transformação VISUAL — N, médias e demais estatísticas continuam
-// calculados sobre o conjunto completo filtrado, nunca sobre a grade.
+// Modo "Densidade" — agregação 2D (hexbin, d3-hexbin) para contextos muito
+// densos (overplotting). É só uma transformação VISUAL — N, médias e demais
+// estatísticas continuam calculados sobre o conjunto completo filtrado,
+// nunca sobre os hexágonos. Cor em escala logarítmica (log10): contagem de
+// escolas por hexágono é uma distribuição de cauda longa (poucos hexágonos
+// concentram milhares de escolas, a maioria tem dezenas) — uma escala linear
+// deixaria quase todos os hexágonos indistinguíveis, dominados pelos raros
+// extremos. Log10 espalha a cor por todas as ordens de grandeza presentes.
 // ---------------------------------------------------------------------
-export function renderDensity(grid, xLabel, domain, cols, rows) {
-  lastRender = () => renderDensity(grid, xLabel, domain, cols, rows);
+const HEX_RADIUS = 9;
+
+export function renderDensity(points, xLabel, domain) {
+  lastRender = () => renderDensity(points, xLabel, domain);
   clearAll();
 
-  xScale = d3.scaleLinear().domain(domain).range([0, innerW()]).nice();
-  yScale = d3.scaleLinear().domain([0, 10]).range([innerH(), 0]);
+  xScale = d3.scaleLinear().domain(domain).range([0, innerW()]).nice().clamp(true);
+  yScale = d3.scaleLinear().domain([0, 10]).range([innerH(), 0]).clamp(true);
   drawAxes(xLabel, 'Ideb');
 
-  const maxN = d3.max(grid, (c) => c.n) || 1;
-  const colorScale = d3.scaleSequential(d3.interpolatePurples).domain([0, Math.sqrt(maxN)]);
-  const cellW = innerW() / cols;
-  const cellH = innerH() / rows;
+  // Posições em pixel — o hexbin precisa da geometria real (distância
+  // euclidiana) para formar hexágonos regulares, não dos valores de dado.
+  const pixelPoints = points.map((p) => [xScale(p.x_valor), yScale(p.ideb)]);
+  const hexGen = d3Hexbin().radius(HEX_RADIUS).extent([[0, 0], [innerW(), innerH()]]);
+  const bins = hexGen(pixelPoints);
+
+  const maxN = d3.max(bins, (b) => b.length) || 1;
+  // Domínio em log precisa começar > 0; hexbin só retorna hexágonos com
+  // >= 1 ponto, então 1 é um piso seguro (nunca haverá log(0)).
+  const colorScale = d3.scaleSequentialLog(d3.interpolatePurples).domain([1, Math.max(2, maxN)]);
+  const hexPath = new Path2D(hexGen.hexagon());
 
   ctx.save();
   ctx.translate(MARGIN.left, MARGIN.top);
-  grid.forEach((c) => {
-    ctx.fillStyle = colorScale(Math.sqrt(c.n));
-    ctx.fillRect(c.gx * cellW, innerH() - (c.gy + 1) * cellH, cellW + 0.5, cellH + 0.5);
+  bins.forEach((b) => {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.fillStyle = colorScale(b.length);
+    ctx.fill(hexPath);
+    ctx.restore();
   });
   ctx.restore();
 
   // camada de hover em SVG (mais simples que recalcular hit-test no canvas)
   const plot = svg.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
-  grid.forEach((c) => {
-    plot.append('rect')
-      .attr('x', c.gx * cellW).attr('y', innerH() - (c.gy + 1) * cellH)
-      .attr('width', cellW).attr('height', cellH)
+  bins.forEach((b) => {
+    plot.append('path')
+      .attr('d', hexGen.hexagon())
+      .attr('transform', `translate(${b.x},${b.y})`)
       .attr('fill', 'transparent')
-      .on('mousemove', (event) => showTooltip(`${fmtN(c.n)} escolas nesta região`, event.clientX, event.clientY))
+      .on('mousemove', (event) => showTooltip(`${fmtN(b.length)} escolas nesta região`, event.clientX, event.clientY))
       .on('mouseleave', () => hideTooltip());
   });
 
+  renderDensityLegend(plot, colorScale, maxN);
+
   svg.append('text').attr('x', MARGIN.left + 4).attr('y', MARGIN.top + 12)
     .style('font-size', '11px').attr('fill', '#83867f')
-    .text('Cor mais escura = mais escolas na região. Estatísticas usam o conjunto completo, não a grade.');
+    .text('Cor mais escura = mais escolas na região (escala log). Estatísticas usam o conjunto completo, não os hexágonos.');
+}
+
+// Legenda de cor com valores reais (log10) — sem ela não há como decodificar
+// o que uma cor significa, só comparar "mais escuro vs. mais claro".
+function renderDensityLegend(plot, colorScale, maxN) {
+  const legendW = 14;
+  const legendH = 90;
+  const legendX = innerW() - 72; // deixa espaço pra rótulos dos ticks à direita, sem sair de innerW()
+  const legendY = 16;
+
+  const gradientId = 'density-legend-gradient';
+  const defs = svg.append('defs');
+  const gradient = defs.append('linearGradient')
+    .attr('id', gradientId)
+    .attr('x1', '0').attr('x2', '0').attr('y1', '0').attr('y2', '1');
+  d3.range(0, 1.0001, 0.1).forEach((t) => {
+    // t=0 -> topo do gradiente -> valor MAIOR (convenção de colorbar vertical)
+    const value = Math.pow(maxN, t);
+    gradient.append('stop').attr('offset', `${(1 - t) * 100}%`).attr('stop-color', colorScale(Math.max(1, value)));
+  });
+
+  const legend = plot.append('g').attr('transform', `translate(${legendX},${legendY})`);
+  legend.append('rect')
+    .attr('width', legendW).attr('height', legendH)
+    .attr('fill', `url(#${gradientId})`)
+    .attr('stroke', '#b9bab2');
+
+  // Ticks em potências de 10 (1, 10, 100, ...), mais o valor máximo real.
+  const ticks = [1];
+  for (let t = 10; t < maxN; t *= 10) ticks.push(t);
+  if (ticks[ticks.length - 1] !== Math.round(maxN)) ticks.push(Math.round(maxN));
+  const tickScale = d3.scaleLog().domain([1, Math.max(2, maxN)]).range([legendH, 0]).clamp(true);
+
+  const tickG = legend.selectAll('.density-legend-tick')
+    .data(ticks)
+    .join('g')
+    .attr('class', 'density-legend-tick')
+    .attr('transform', (t) => `translate(0,${tickScale(t)})`);
+  tickG.append('line').attr('x1', 0).attr('x2', legendW + 4).attr('stroke', '#83867f');
+  tickG.append('text')
+    .attr('x', legendW + 6).attr('y', 3)
+    .style('font-size', '10px').attr('fill', '#4d514e')
+    .text((t) => fmtN(Math.round(t)));
+
+  legend.append('text')
+    .attr('x', 0).attr('y', -6)
+    .style('font-size', '10px').attr('fill', '#83867f')
+    .text('N escolas');
 }
 
 // ---------------------------------------------------------------------
