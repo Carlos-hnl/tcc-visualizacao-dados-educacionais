@@ -426,6 +426,7 @@ button, select, input { font-family: inherit; font-size: inherit; }
   flex-direction: column;
   gap: 5px;
 }
+.control-field[hidden] { display: none; }
 
 .control-field > label {
   font-size: 11px;
@@ -534,6 +535,7 @@ button, select, input { font-family: inherit; font-size: inherit; }
   border-radius: 999px;
   padding: 4px 10px;
 }
+.footnote-pill[hidden] { display: none; }
 .footnote-pill-btn {
   border: 1px solid var(--line-strong);
   cursor: pointer;
