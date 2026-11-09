@@ -199,6 +199,7 @@ function updateModeDependentControls() {
   document.getElementById('nbins-field').hidden = !(isContinua && ui.scatterMode === 'tendencia');
   const isPontos = isContinua && ui.scatterMode === 'pontos';
   document.getElementById('zoom-hint').hidden = !isPontos;
+  document.getElementById('loess-hint').hidden = !isPontos;
   if (!isPontos) document.getElementById('zoom-reset').hidden = true; // reaparece sozinho se o usuário der zoom de novo
 
   const segmentNote = document.getElementById('segment-mode-note');
@@ -278,7 +279,7 @@ function updateSubtitle(extra) {
   let text;
   if (meta.type === 'continua') {
     if (ui.scatterMode === 'pontos') {
-      text = `Relação entre ${meta.label.toLowerCase()} e Ideb. Cada ponto representa uma escola pública no contexto filtrado.`;
+      text = `Relação entre ${meta.label.toLowerCase()} e Ideb. Cada ponto representa uma escola pública no contexto filtrado. A linha pontilhada é uma suavização visual (LOESS) do padrão local, não um modelo preditivo.`;
     } else if (ui.scatterMode === 'densidade') {
       text = `Densidade de escolas por ${meta.label.toLowerCase()} e Ideb. Cada hexágono agrega várias escolas (cor em escala log); as estatísticas usam o conjunto completo filtrado, não a grade.`;
     } else {

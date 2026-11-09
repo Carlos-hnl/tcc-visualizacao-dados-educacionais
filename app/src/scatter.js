@@ -43,6 +43,7 @@ let onSelectionChange = null;
 let onPointClick = null;
 let currentSegmentBy = 'nenhuma';
 let rafScheduled = false;
+let loessCurve = []; // curva suavizada (LOESS) em espaço de DADO, recalculada só quando os dados mudam
 
 export function initScatter({ onSelection, onClick } = {}) {
   wrap = document.getElementById('scatter-wrap');
@@ -198,12 +199,18 @@ export function renderContinuousPoints(points, xLabel, domain, segmentBy) {
   xScale = baseXScale;
   yScale = baseYScale;
 
+  // Em espaço de DADO (x, ideb) — recalculada só aqui (dados/filtro mudaram),
+  // não a cada repaint de zoom/hover; o desenho (drawLoessCurve) é que
+  // reprojeta pela escala atual a cada repaint, sem precisar reajustar a curva.
+  loessCurve = computeLoess(points, baseXScale.domain());
+
   rebuildQuadtreeForZoom();
 
   lastRender = () => paintPoints();
   clearAll();
   drawAxes(xLabel, 'Ideb');
   paintPoints();
+  drawLoessCurve();
   attachBrush();
   attachHover();
   attachZoom();
@@ -228,6 +235,7 @@ function attachZoom() {
       updateAxesForZoom();
       rebuildQuadtreeForZoom();
       paintPoints();
+      drawLoessCurve();
       toggleZoomResetButton();
     });
   svg.call(zoomBehavior);
@@ -407,13 +415,27 @@ function clampJitter(d, domain) {
   return (hashId(d.id) - 0.5) * 2 * CLAMP_JITTER_PX;
 }
 
+// Opacidade fixa e baixa (0,15–0,3), só em "Pontos individuais": com
+// dezenas de milhares de escolas, mitiga overplotting sem esconder o
+// padrão geral — ao custo de os pontos não-selecionados ficarem bem fracos,
+// por isso a seleção por brush abaixo usa opacidade cheia para continuar
+// se destacando claramente contra esse fundo mais apagado.
+function pointsAlphaFor(n) {
+  if (n > 8000) return 0.15;
+  if (n > 2000) return 0.2;
+  if (n > 500) return 0.25;
+  return 0.3;
+}
+
+const POINTS_RADIUS = 1.8;
+
 function paintPoints() {
   ctx.clearRect(0, 0, width, height);
   ctx.save();
   ctx.translate(MARGIN.left, MARGIN.top);
   const hasSelection = selectedIds.size > 0;
-  const baseAlpha = baseAlphaFor(currentPoints.length);
-  const R = 2.8;
+  const baseAlpha = pointsAlphaFor(currentPoints.length);
+  const R = POINTS_RADIUS;
   const domain = xScale.domain();
 
   currentPoints.forEach((d) => {
@@ -431,8 +453,11 @@ function paintPoints() {
       ctx.fill();
     }
 
-    ctx.globalAlpha = hasSelection && !isSel && !isHi ? Math.min(baseAlpha, 0.12) : baseAlpha;
-    drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : R);
+    // Selecionadas (brush) e destacadas sempre em opacidade cheia — contra
+    // um fundo de 0,15–0,3 de opacidade, nada menos que isso se destacaria.
+    if (isSel || isHi) ctx.globalAlpha = 1;
+    else ctx.globalAlpha = hasSelection ? Math.min(baseAlpha, 0.1) : baseAlpha;
+    drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : isSel ? R * 1.3 : R);
     ctx.fillStyle = color;
     ctx.fill();
 
@@ -440,12 +465,105 @@ function paintPoints() {
       ctx.globalAlpha = 1;
       ctx.lineWidth = isHi ? 2.2 : isSel ? 1.4 : 1;
       ctx.strokeStyle = isHi ? '#1b1d1c' : isSel ? '#1b1d1c' : '#4d514e';
-      drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : R);
+      drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : isSel ? R * 1.3 : R);
       ctx.stroke();
     }
   });
   ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+// ---------------------------------------------------------------------
+// Tendência local (LOESS) — só no modo "Pontos individuais", variável
+// contínua. Suavização não-paramétrica (regressão linear ponderada por
+// kernel tricúbico, grau 1) ao longo de uma grade de pontos no eixo X.
+// Diferente do modo "Ideb médio por faixa" (que agrega em faixas largas e
+// discretas), a LOESS acompanha o formato local da nuvem de pontos de forma
+// contínua — mas continua sendo só uma suavização visual: não é regressão
+// preditiva, não estima um valor "esperado" e não implica causalidade (ver
+// mesmas ressalvas de DISTANCIA_NOTE/INFRA_INDEX_NOTE em data.js).
+// A faixa sombreada ao redor da linha é a dispersão local (desvio-padrão
+// ponderado dos resíduos na janela), não um intervalo de confiança formal.
+// ---------------------------------------------------------------------
+function computeLoess(points, domain, span = 0.3, gridSize = 60) {
+  const n = points.length;
+  if (n < 20) return []; // poucos pontos: a curva ficaria instável/enganosa
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.ideb);
+  const k = Math.max(15, Math.floor(span * n));
+  const [lo, hi] = domain;
+  if (!(hi > lo)) return [];
+
+  const order = d3.range(n).sort((a, b) => xs[a] - xs[b]);
+  const sortedX = order.map((i) => xs[i]);
+  const grid = d3.range(gridSize + 1).map((i) => lo + ((hi - lo) * i) / gridSize);
+
+  return grid.map((gx) => {
+    // janela dos k pontos com x mais próximo de gx
+    const i0 = d3.bisectLeft(sortedX, gx);
+    let loI = Math.max(0, i0 - Math.floor(k / 2));
+    const hiI = Math.min(n, loI + k);
+    loI = Math.max(0, hiI - k);
+    const idxs = order.slice(loI, hiI);
+    if (idxs.length < 5) return null;
+
+    const dmax = d3.max(idxs, (i) => Math.abs(xs[i] - gx)) || 1;
+    let sw = 0, swx = 0, swy = 0, swxx = 0, swxy = 0;
+    idxs.forEach((i) => {
+      const dn = Math.abs(xs[i] - gx) / dmax;
+      const w = dn < 1 ? (1 - dn ** 3) ** 3 : 0; // kernel tricúbico
+      sw += w; swx += w * xs[i]; swy += w * ys[i];
+      swxx += w * xs[i] * xs[i]; swxy += w * xs[i] * ys[i];
+    });
+    if (sw <= 0) return null;
+
+    // regressão linear ponderada local (grau 1)
+    const denom = sw * swxx - swx * swx;
+    let slope = 0;
+    let intercept = swy / sw;
+    if (Math.abs(denom) > 1e-9) {
+      slope = (sw * swxy - swx * swy) / denom;
+      intercept = (swy - slope * swx) / sw;
+    }
+    const yHat = intercept + slope * gx;
+
+    let swres = 0;
+    idxs.forEach((i) => {
+      const dn = Math.abs(xs[i] - gx) / dmax;
+      const w = dn < 1 ? (1 - dn ** 3) ** 3 : 0;
+      const fitted = intercept + slope * xs[i];
+      swres += w * (ys[i] - fitted) ** 2;
+    });
+    const sd = Math.sqrt(swres / sw);
+
+    return { x: gx, y: Math.max(0, Math.min(10, yHat)), sd };
+  }).filter(Boolean);
+}
+
+function drawLoessCurve() {
+  svg.selectAll('.loess-layer').remove();
+  if (loessCurve.length < 2) return;
+
+  const g = svg.append('g')
+    .attr('class', 'loess-layer')
+    .attr('transform', `translate(${MARGIN.left},${MARGIN.top})`)
+    .attr('pointer-events', 'none'); // nunca captura brush/hover — é só leitura visual
+
+  const area = d3.area()
+    .x((d) => xScale(d.x))
+    .y0((d) => yScale(Math.max(0, d.y - d.sd)))
+    .y1((d) => yScale(Math.min(10, d.y + d.sd)))
+    .curve(d3.curveMonotoneX);
+  g.append('path').datum(loessCurve).attr('d', area)
+    .attr('fill', '#1b2a52').attr('fill-opacity', 0.1).attr('stroke', 'none');
+
+  const line = d3.line()
+    .x((d) => xScale(d.x))
+    .y((d) => yScale(d.y))
+    .curve(d3.curveMonotoneX);
+  g.append('path').datum(loessCurve).attr('d', line)
+    .attr('fill', 'none').attr('stroke', '#1b2a52')
+    .attr('stroke-width', 2).attr('stroke-dasharray', '2,3');
 }
 
 function attachBrush() {
