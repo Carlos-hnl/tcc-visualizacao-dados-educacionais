@@ -19,7 +19,7 @@ import { debounce, setLoading, setEmptyState, EMPTY_MESSAGES } from './ui.js';
 const ui = {
   xVar: ANALYSIS_VARIABLES[0].id,
   segmentBy: 'nenhuma',
-  scatterMode: 'pontos', // 'pontos' | 'densidade' | 'tendencia' (só p/ contínuas)
+  scatterMode: 'densidade', // 'densidade' (principal) | 'pontos' (secundário) | 'tendencia' (só p/ contínuas)
   level3Mode: 'selecionadas', // 'selecionadas' | 'outliers'
   nBins: 16, // nº de faixas do modo "Ideb médio por faixa" — ajustável pelo usuário
 };
