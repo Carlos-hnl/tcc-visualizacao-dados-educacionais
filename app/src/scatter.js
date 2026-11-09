@@ -79,11 +79,16 @@ function innerH() { return height - MARGIN.top - MARGIN.bottom; }
 function clearAll() {
   ctx.clearRect(0, 0, width, height);
   svg.selectAll('*').remove();
-  // d3.zoom() anexa seus listeners (wheel/mousedown/etc.) direto no <svg>
-  // raiz, não nos filhos — selectAll('*').remove() não os limpa sozinho.
-  // Sem isso, trocar de modo (ex.: Pontos -> Densidade) deixaria o zoom da
-  // visualização anterior ainda ativo por cima da nova.
+  // d3.zoom() e attachHover() anexam seus listeners (wheel/mousedown/
+  // mousemove/click/etc.) direto no <svg> raiz, não nos filhos —
+  // selectAll('*').remove() não os limpa sozinho. Sem isso, trocar de modo
+  // (ex.: Pontos individuais -> Densidade) deixava o hover da visualização
+  // anterior ainda ativo por baixo da nova: o tooltip com nome/UF/rede da
+  // escola (de attachHover, modo Pontos) continuava aparecendo no modo
+  // Densidade, por cima do tooltip correto de cada hexágono.
   svg.on('.zoom', null);
+  svg.on('.hover', null);
+  svg.on('.pick', null);
 }
 
 function drawAxes(xLabel, yLabel, xIsBand) {
