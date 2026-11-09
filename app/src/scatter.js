@@ -415,19 +415,18 @@ function clampJitter(d, domain) {
   return (hashId(d.id) - 0.5) * 2 * CLAMP_JITTER_PX;
 }
 
-// Opacidade fixa e baixa (0,15–0,3), só em "Pontos individuais": com
-// dezenas de milhares de escolas, mitiga overplotting sem esconder o
-// padrão geral — ao custo de os pontos não-selecionados ficarem bem fracos,
-// por isso a seleção por brush abaixo usa opacidade cheia para continuar
-// se destacando claramente contra esse fundo mais apagado.
+// Opacidade do preenchimento, só em "Pontos individuais": ajuda a mitigar
+// overplotting sem apagar demais o padrão geral — a borda de cada ponto
+// (abaixo, em paintPoints) fica sempre 100% opaca na mesma cor, então o
+// contorno continua bem legível mesmo com o preenchimento mais sutil.
 function pointsAlphaFor(n) {
-  if (n > 8000) return 0.15;
-  if (n > 2000) return 0.2;
-  if (n > 500) return 0.25;
-  return 0.3;
+  if (n > 8000) return 0.35;
+  if (n > 2000) return 0.42;
+  if (n > 500) return 0.5;
+  return 0.55;
 }
 
-const POINTS_RADIUS = 1.8;
+const POINTS_RADIUS = 2.3;
 // Em "Pontos individuais" a nuvem de pontos é mais fraca (opacidade baixa),
 // então a LOESS precisa de mais peso visual pra continuar legível por cima;
 // em Densidade os hexágonos já têm bastante cor, então a linha ali fica no
@@ -458,19 +457,30 @@ function paintPoints() {
       ctx.fill();
     }
 
-    // Selecionadas (brush) e destacadas sempre em opacidade cheia — contra
-    // um fundo de 0,15–0,3 de opacidade, nada menos que isso se destacaria.
+    const rad = isHi ? R * 1.6 : isSel ? R * 1.3 : R;
+
+    // Selecionadas (brush) e destacadas sempre em preenchimento cheio —
+    // contra o fundo mais sutil, continuam se destacando claramente.
     if (isSel || isHi) ctx.globalAlpha = 1;
-    else ctx.globalAlpha = hasSelection ? Math.min(baseAlpha, 0.1) : baseAlpha;
-    drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : isSel ? R * 1.3 : R);
+    else ctx.globalAlpha = hasSelection ? Math.min(baseAlpha, 0.25) : baseAlpha;
+    drawShape(ctx, shape, cx, cy, rad);
     ctx.fillStyle = color;
     ctx.fill();
 
+    // Borda sempre 100% opaca, na mesma cor do ponto — mantém o contorno
+    // nítido mesmo quando o preenchimento está translúcido.
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = color;
+    drawShape(ctx, shape, cx, cy, rad);
+    ctx.stroke();
+
+    // Seleção/destaque/hover: contorno adicional, mais grosso e em cor
+    // neutra, por cima da borda colorida — reforça o estado sem escondê-la.
     if (isSel || isHi || isHover) {
-      ctx.globalAlpha = 1;
       ctx.lineWidth = isHi ? 2.2 : isSel ? 1.4 : 1;
       ctx.strokeStyle = isHi ? '#1b1d1c' : isSel ? '#1b1d1c' : '#4d514e';
-      drawShape(ctx, shape, cx, cy, isHi ? R * 1.6 : isSel ? R * 1.3 : R);
+      drawShape(ctx, shape, cx, cy, rad);
       ctx.stroke();
     }
   });
