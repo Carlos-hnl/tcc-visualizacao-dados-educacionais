@@ -210,7 +210,7 @@ export function renderContinuousPoints(points, xLabel, domain, segmentBy) {
   clearAll();
   drawAxes(xLabel, 'Ideb');
   paintPoints();
-  drawLoessCurve();
+  drawLoessCurve(POINTS_LOESS_STROKE);
   attachBrush();
   attachHover();
   attachZoom();
@@ -235,7 +235,7 @@ function attachZoom() {
       updateAxesForZoom();
       rebuildQuadtreeForZoom();
       paintPoints();
-      drawLoessCurve();
+      drawLoessCurve(POINTS_LOESS_STROKE);
       toggleZoomResetButton();
     });
   svg.call(zoomBehavior);
@@ -428,6 +428,11 @@ function pointsAlphaFor(n) {
 }
 
 const POINTS_RADIUS = 1.8;
+// Em "Pontos individuais" a nuvem de pontos é mais fraca (opacidade baixa),
+// então a LOESS precisa de mais peso visual pra continuar legível por cima;
+// em Densidade os hexágonos já têm bastante cor, então a linha ali fica no
+// traço padrão (drawLoessCurve(), sem argumento).
+const POINTS_LOESS_STROKE = 3;
 
 function paintPoints() {
   ctx.clearRect(0, 0, width, height);
@@ -540,7 +545,7 @@ function computeLoess(points, domain, span = 0.3, gridSize = 60) {
   }).filter(Boolean);
 }
 
-function drawLoessCurve() {
+function drawLoessCurve(strokeWidth = 2) {
   svg.selectAll('.loess-layer').remove();
   if (loessCurve.length < 2) return;
 
@@ -563,7 +568,7 @@ function drawLoessCurve() {
     .curve(d3.curveMonotoneX);
   g.append('path').datum(loessCurve).attr('d', line)
     .attr('fill', 'none').attr('stroke', '#1b2a52')
-    .attr('stroke-width', 2).attr('stroke-dasharray', '2,3');
+    .attr('stroke-width', strokeWidth).attr('stroke-dasharray', '2,3');
 }
 
 function attachBrush() {

@@ -148,7 +148,7 @@ export const LOCALIZACAO_SHAPES = { Urbana: 'circle', Rural: 'triangle' };
 // sobrepostas no mesmo painel, que é exatamente o que essa paleta evita.
 export const INSE_CLASS_COLOR_SCALE = ['#f2e9f5', '#dcc2e6', '#c19bd6', '#a473c6', '#8750b5', '#6c34a0', '#521f85', '#391066'];
 
-export const NEUTRAL_POINT_COLOR = '#5f5e5a';
+export const NEUTRAL_POINT_COLOR = '#3366cc';
 
 export const INSE_LEVELS = ['Nível I', 'Nível II', 'Nível III', 'Nível IV', 'Nível V', 'Nível VI', 'Nível VII', 'Nível VIII'];
 export const INSE_LEVELS_DEFAULT = ['Nível III', 'Nível IV', 'Nível V', 'Nível VI'];
