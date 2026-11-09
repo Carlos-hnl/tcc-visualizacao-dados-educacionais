@@ -666,6 +666,12 @@ export function renderDensity(points, xLabel, domain) {
   yScale = d3.scaleLinear().domain([0, 10]).range([innerH(), 0]).clamp(true);
   drawAxes(xLabel, 'Ideb');
 
+  // Mesma função (computeLoess) e mesmo conjunto de dados filtrado (x, ideb)
+  // do modo "Pontos individuais" — só muda a chave (x_valor aqui, x lá), o
+  // método e o domínio (P1/P99) são idênticos, então as duas curvas devem
+  // coincidir visualmente ao trocar de modo.
+  loessCurve = computeLoess(points.map((p) => ({ x: p.x_valor, ideb: p.ideb })), xScale.domain());
+
   // Posições em pixel — o hexbin precisa da geometria real (distância
   // euclidiana) para formar hexágonos regulares, não dos valores de dado.
   const pixelPoints = points.map((p) => [xScale(p.x_valor), yScale(p.ideb)]);
@@ -701,6 +707,7 @@ export function renderDensity(points, xLabel, domain) {
   });
 
   renderDensityLegend(plot, colorScale, maxN);
+  drawLoessCurve();
 
   svg.append('text').attr('x', MARGIN.left + 4).attr('y', MARGIN.top + 12)
     .style('font-size', '11px').attr('fill', '#83867f')

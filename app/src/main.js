@@ -198,8 +198,9 @@ function updateModeDependentControls() {
   const isContinua = currentXMeta()?.type === 'continua';
   document.getElementById('nbins-field').hidden = !(isContinua && ui.scatterMode === 'tendencia');
   const isPontos = isContinua && ui.scatterMode === 'pontos';
+  const showsLoess = isContinua && (ui.scatterMode === 'pontos' || ui.scatterMode === 'densidade');
   document.getElementById('zoom-hint').hidden = !isPontos;
-  document.getElementById('loess-hint').hidden = !isPontos;
+  document.getElementById('loess-hint').hidden = !showsLoess;
   if (!isPontos) document.getElementById('zoom-reset').hidden = true; // reaparece sozinho se o usuário der zoom de novo
 
   const segmentNote = document.getElementById('segment-mode-note');
@@ -281,7 +282,7 @@ function updateSubtitle(extra) {
     if (ui.scatterMode === 'pontos') {
       text = `Relação entre ${meta.label.toLowerCase()} e Ideb. Cada ponto representa uma escola pública no contexto filtrado. A linha pontilhada é uma suavização visual (LOESS) do padrão local, não um modelo preditivo.`;
     } else if (ui.scatterMode === 'densidade') {
-      text = `Densidade de escolas por ${meta.label.toLowerCase()} e Ideb. Cada hexágono agrega várias escolas (cor em escala log); as estatísticas usam o conjunto completo filtrado, não a grade.`;
+      text = `Densidade de escolas por ${meta.label.toLowerCase()} e Ideb. Cada hexágono agrega várias escolas (cor em escala log); as estatísticas usam o conjunto completo filtrado, não a grade. A linha pontilhada é uma suavização visual (LOESS) do padrão local, não um modelo preditivo.`;
     } else {
       text = `Ideb médio por faixa de ${meta.label.toLowerCase()}. As faixas agrupam escolas com valores semelhantes da variável selecionada. Não sugere causalidade.`;
     }
