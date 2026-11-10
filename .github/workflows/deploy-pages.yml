@@ -28,15 +28,22 @@ jobs:
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
-      # index.html referencia ../src/main.js e ../src/styles.css (public/ e
-      # src/ são pastas irmãs no repositório). O artefato de Pages precisa
-      # reproduzir essa mesma relação — se publicássemos só app/public, esses
-      # caminhos dariam 404 e o app travaria na tela de carregamento inicial.
-      - name: Montar site (public/ + src/ como irmãos)
+      # index.html referencia ../src/main.js e ../src/styles.css, caminho
+      # relativo que só resolve certo quando a URL de index.html tem pelo
+      # menos um nível de pasta antes da raiz do site (ex.: .../app/public/
+      # servido a partir de um diretório acima). No GitHub Pages, o projeto
+      # é publicado NA raiz do site — então "../" tenta subir acima da raiz
+      # inteira (vira .../main.js no domínio github.io, fora da pasta do
+      # projeto) e dá 404. Aqui copiamos src/ como irmã de index.html e
+      # reescrevemos só essa cópia publicada para "src/..." (sem "../"),
+      # sem tocar no index.html real do repositório — o fluxo local continua
+      # intacto.
+      - name: Montar site (public/ + src/ como irmãos, com caminhos corrigidos)
         run: |
           mkdir -p _site
           cp -r app/public/. _site/
           cp -r app/src _site/src
+          sed -i 's@\.\./src/@src/@g' _site/index.html
 
       - name: Upload do artefato
         uses: actions/upload-pages-artifact@v3
