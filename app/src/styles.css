@@ -413,6 +413,58 @@ button, select, input { font-family: inherit; font-size: inherit; }
   background: var(--panel);
 }
 
+/* Faixa de cards com o resumo numérico do contexto filtrado (N de escolas,
+   Ideb médio/máx/mín) — resposta imediata de "quanto" antes de qualquer
+   gráfico, para não depender só do N no rodapé do scatter. */
+.stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stat-card {
+  flex: 1 1 150px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+}
+
+.stat-card-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stat-card-value {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.stat-card-label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.stat-card-n { background: var(--accent-soft); }
+.stat-card-n .stat-card-icon { color: var(--accent); }
+
+.stat-card-media { background: var(--positive-soft); }
+.stat-card-media .stat-card-icon { color: var(--positive); }
+
+.stat-card-max { background: var(--warn-soft); }
+.stat-card-max .stat-card-icon { color: var(--warn); }
+
+.stat-card-min { background: var(--negative-soft); }
+.stat-card-min .stat-card-icon { color: var(--negative); }
+
 .level2-controls-row {
   display: flex;
   flex-wrap: wrap;

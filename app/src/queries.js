@@ -57,6 +57,23 @@ export function buildWhere(state, opts = {}) {
   return clauses.join(' AND ');
 }
 
+// Resumo numérico do contexto filtrado (faixa de cards no topo do Nível 2) —
+// mesmas escolas que entram no mapa e no scatter (requireIdeb padrão: só
+// quem tem Ideb válido), então os números aqui sempre batem com o N mostrado
+// nos outros painéis.
+export function summaryStatsQuery(state) {
+  const where = buildWhere(state);
+  return `
+    SELECT
+      COUNT(DISTINCT co_entidade) AS n,
+      AVG(ideb) AS ideb_medio,
+      MAX(ideb) AS ideb_max,
+      MIN(ideb) AS ideb_min
+    FROM escolas_v
+    WHERE ${where};
+  `;
+}
+
 export function mapQuery(state) {
   const where = buildWhere(state, { extraUfFilter: new Set() }); // mapa ignora o próprio filtro de UF, senão UF clicada desapareceria
   return `

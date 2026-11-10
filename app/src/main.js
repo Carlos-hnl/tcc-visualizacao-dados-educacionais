@@ -14,7 +14,7 @@ import {
   renderCategoryDotPlot, getLegendItems, getScatterLegendItems, setHighlighted, clearSelection, resetZoom,
 } from './scatter.js';
 import { initComparison, renderSelecionadas, renderOutliers, highlightRow } from './comparison.js';
-import { debounce, setLoading, setEmptyState, EMPTY_MESSAGES } from './ui.js';
+import { debounce, setLoading, setEmptyState, EMPTY_MESSAGES, fmtN, fmtIdeb } from './ui.js';
 
 const ui = {
   xVar: ANALYSIS_VARIABLES[0].id,
@@ -294,6 +294,17 @@ function updateSubtitle(extra) {
   el.textContent = text;
 }
 
+// Faixa de cards no topo do Nível 2 (N de escolas, Ideb médio/máx/mín do
+// contexto filtrado) — mesma ideia da faixa de totais do painel de
+// referência (artigo SBBD), adaptada: lá é município x indicador, aqui é
+// escola x Ideb.
+function updateStatsRow(row) {
+  document.getElementById('stat-n').textContent = row ? fmtN(row.n ?? 0) : '—';
+  document.getElementById('stat-ideb-medio').textContent = row ? fmtIdeb(row.ideb_medio) : '—';
+  document.getElementById('stat-ideb-max').textContent = row ? fmtIdeb(row.ideb_max) : '—';
+  document.getElementById('stat-ideb-min').textContent = row ? fmtIdeb(row.ideb_min) : '—';
+}
+
 // ---------------------------------------------------------------------
 // Pipeline de consultas
 // ---------------------------------------------------------------------
@@ -309,15 +320,17 @@ async function refreshAll() {
       lastEtapaForColorDomain = state.etapa;
     }
 
-    const [comIdebRows, totalRows, mapRows] = await Promise.all([
+    const [comIdebRows, totalRows, mapRows, statsRows] = await Promise.all([
       query(Q.nCounterQuery(state)),
       query(Q.nTotalQuery(state)),
       query(Q.mapQuery(state)),
+      query(Q.summaryStatsQuery(state)),
     ]);
     const nComIdeb = comIdebRows[0]?.n ?? 0;
     const nTotal = totalRows[0]?.n ?? 0;
     updateNCounter(nComIdeb, Math.max(0, nTotal - nComIdeb));
     updateMap(mapRows, state.ufs);
+    updateStatsRow(statsRows[0] ?? null);
   } catch (err) {
     showErrorBanner('refreshAll (mapa/contador)', err);
     setLoading('map-loading', false);
