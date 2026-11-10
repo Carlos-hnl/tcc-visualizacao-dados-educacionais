@@ -747,8 +747,13 @@ function renderDensityLegend(plot, colorScale, maxN) {
   const gradient = defs.append('linearGradient')
     .attr('id', gradientId)
     .attr('x1', '0').attr('x2', '0').attr('y1', '0').attr('y2', '1');
-  d3.range(0, 1.0001, 0.1).forEach((t) => {
-    // t=0 -> topo do gradiente -> valor MAIOR (convenção de colorbar vertical)
+  // Os <stop> precisam ser inseridos em ordem de offset CRESCENTE — é uma
+  // exigência do SVG (um offset menor que o anterior é grampeado ao maior já
+  // visto). Por isso iteramos t de 1 a 0 (offset 0% -> 100%), não o inverso:
+  // antes disso, todos os stops colapsavam no primeiro offset (100%) e a
+  // barra inteira pintava só com a cor mais clara (legenda "em branco").
+  d3.range(1, -0.0001, -0.1).forEach((t) => {
+    // t=1 -> topo do gradiente (offset 0%) -> valor MAIOR (convenção de colorbar vertical)
     const value = Math.pow(maxN, t);
     gradient.append('stop').attr('offset', `${(1 - t) * 100}%`).attr('stop-color', colorScale(Math.max(1, value)));
   });
