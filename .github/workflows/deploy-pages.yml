@@ -3,7 +3,7 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [feature/visualizacao-d3-duckdb]
-    paths: ["app/public/**"]
+    paths: ["app/public/**", "app/src/**", ".github/workflows/deploy-pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -28,10 +28,20 @@ jobs:
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload do artefato (app/public)
+      # index.html referencia ../src/main.js e ../src/styles.css (public/ e
+      # src/ são pastas irmãs no repositório). O artefato de Pages precisa
+      # reproduzir essa mesma relação — se publicássemos só app/public, esses
+      # caminhos dariam 404 e o app travaria na tela de carregamento inicial.
+      - name: Montar site (public/ + src/ como irmãos)
+        run: |
+          mkdir -p _site
+          cp -r app/public/. _site/
+          cp -r app/src _site/src
+
+      - name: Upload do artefato
         uses: actions/upload-pages-artifact@v3
         with:
-          path: app/public
+          path: _site
 
       - name: Deploy
         id: deployment
